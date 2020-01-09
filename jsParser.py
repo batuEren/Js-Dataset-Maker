@@ -1,14 +1,19 @@
 import re
 import requests
 import math
+import jsbeautifier
 
-testUrl = "https://www.google-analytics.com/analytics.js"
+testUrl = "https://apple.com/metrics/target/scripts/1.0/at.js"
+
+js_keywords = ["break", "case", "catch", "continue", "debugger", "default", "delete", "do", "else", "finally", "for", "function", "if", "in", "instanceof", "new", "return", "switch", "this", "throw", "try", "typeof", "var", "void", "while", "with"]
+
 
 def parseJavascript(url):
     r = requests.get(url, allow_redirects=False)
-    js_code = r.content.decode("utf-8")
-    #print(js_code)
-
+    temp_code = r.content.decode("ISO-8859-1")
+    js_code = jsbeautifier.beautify(temp_code)
+    
+    
     noOfEvalFunc = len(re.findall("eval\(", js_code))
     noOfSetTimeOutFunc = len(re.findall("setTimeout\(", js_code))
     noOfiframe = len(re.findall("iframe", js_code))
@@ -18,7 +23,7 @@ def parseJavascript(url):
     noOfParseIntFunc = len(re.findall("parseInt\(", js_code))
     noOfFromCharCodeFunc = len(re.findall("fromCharCode\(", js_code))
     noOfActiveXObjectFunc = len(re.findall("ActiveXObject\(", js_code))
-    noOfStringAssigments = 0 #TODO Number of string direct assigments. I don't know what this means, yet.
+    noOfStringAssigments = len(re.findall(r'"((?<=\\)"|([^"]))"', js_code))
     noOfConcatFunc = len(re.findall("concat\(", js_code))
     noOfIndexOfFunc = len(re.findall("indexOf\(", js_code))
     noOfSubstringFunc = len(re.findall("substring\(", js_code))
@@ -29,20 +34,32 @@ def parseJavascript(url):
     noOfGetElementByIdFunc = len(re.findall("getElementById\(", js_code))
     noOfDocumentWriteFunc = len(re.findall("document.write\(", js_code))
     noOfWords = len(re.findall(r'\w+', js_code)) 
-    noOfKeyWords = 0 #TODO find the number of keywords
+    noOfKeyWords = findKeyWords(js_code)
     noOfCharacters = len(js_code)
-    ratioOfKeywordsAndWords = noOfKeyWords / noOfWords
+    try:
+        ratioOfKeywordsAndWords = noOfKeyWords / noOfWords
+    except ZeroDivisionError:
+        ratioOfKeywordsAndWords = 0
     entropyOfJS = Entropy(js_code)
     longestWord = len(findTheLongestWord(js_code))
-    noOfLongStirngs = 0 # TODO find strings longer than 200
+    noOfLongStirngs = len(re.findall(r'"((?<=\\)"|([^"])){200,}"', js_code))
     shortestWord = len(findTheShortestWord(js_code))
     entropyOfLongestWord = Entropy(findTheLongestWord(js_code))
     noOfBlankSpaces = len(re.findall(" ", js_code))
-    avgLenOfWords = noOfCharacters / noOfWords
-    noOfHexValues = 0 #TODO numbre of hex values in js
-    shareOfSpaceChar = 0 #TODO share of space characters what does this means
+    try:
+        avgLenOfWords = noOfCharacters / noOfWords
+    except ZeroDivisionError:
+        avgLenOfWords = 0
+    noOfHexValues = findHexNumbers(js_code)
+    try:
+        shareOfSpaceChar = len(re.findall(" ", js_code)) / noOfCharacters
+    except ZeroDivisionError:
+        shareOfSpaceChar = 0
+    #print(noOfHexValues)
     
-    return (noOfCharacters, noOfEvalFunc, noOfSetTimeOutFunc, noOfiframe, noOfUnescapeFunc, noOfEscapeFunc, noOfClassid, noOfParseIntFunc, noOfFromCharCodeFunc, noOfActiveXObjectFunc,
+
+    
+    return (noOfEvalFunc, noOfSetTimeOutFunc, noOfiframe, noOfUnescapeFunc, noOfEscapeFunc, noOfClassid, noOfParseIntFunc, noOfFromCharCodeFunc, noOfActiveXObjectFunc,
     noOfStringAssigments, noOfConcatFunc, noOfIndexOfFunc, noOfSubstringFunc, noOfReplaceFunc, noOfEventListenerFunc, noOfAttachEventFunc, noOfCreateElementFunc, noOfGetElementByIdFunc,
     noOfDocumentWriteFunc, noOfWords, noOfKeyWords, noOfCharacters, ratioOfKeywordsAndWords, entropyOfJS, longestWord, noOfLongStirngs, shortestWord, entropyOfLongestWord, noOfBlankSpaces,
     avgLenOfWords, noOfHexValues, shareOfSpaceChar)
@@ -63,3 +80,28 @@ def findTheLongestWord(text):
 def findTheShortestWord(text):
   tempList = text.split(' ')
   return min(tempList, key=len)
+
+"""def findLongStings(text):
+    longs = []
+    temp = re.findall(r'var = .*\".*\"', text)
+    for string in temp:
+        if len(string) > 200:
+            longs.append(string)"""
+
+def findKeyWords(text):
+    numberOfKeywords = 0
+    temp = re.findall(r'\w+', text)
+    for word in temp:
+        if word in js_keywords:
+            numberOfKeywords += 1
+    temp = re.findall(r'"((?<=\\)"|([^"]))"', text)
+    for word in temp:
+        if word in js_keywords:
+            numberOfKeywords += -1
+    return numberOfKeywords
+
+def findHexNumbers(text):
+    number = len(re.findall(r'0x', text)) + len(re.findall(r'parseInt\([^,]*,? *16\)', text))
+    return number
+
+#print(parseJavascript(testUrl))
